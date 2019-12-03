@@ -1,26 +1,31 @@
 package example
 
 import com.spotify.scio._
-import example.objects.{NumberAuto, NumberManual, NumberMessage}
+import com.spotify.scio.values.SCollection
+import example.message.NumberBuffer
+import example.objects.NumberInfo
+//import org.joda.time.Duration
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
-import org.apache.beam.sdk.options.{Description, PipelineOptions, PipelineOptionsFactory, StreamingOptions, ValueProvider}
 import org.slf4j.LoggerFactory
-
-import scala.collection.JavaConverters._
-import scala.language.implicitConversions
-
+import collection.JavaConverters._
 /*
 sbt "runMain example.SourceMerge
 */
 
 class SourceMerge(@transient val sc: ScioContext) extends Serializable {
   def processSources(autoTopic: String, manualTopic: String, numberInfo: String): Unit = {
-    val autoInput = sc.customInput("auto", PubsubIO.readMessages().fromSubscription(autoTopic))
-      .map(NumberAuto(_))
+    val autoInput: SCollection[NumberInfo] = sc
+      .customInput("auto", PubsubIO.readProtos(NumberBuffer.getClass).fromSubscription(autoTopic))
+      .map(NumberInfo(_))
 
-    val manualInput = sc.customInput("manual", PubsubIO.readMessages().fromSubscription(manualTopic))
-      .map(NumberManual(_))
+    val manualInput: SCollection[NumberInfo] = sc
+      .customInput("manual", PubsubIO.readProtos(NumberBuffer.getClass).fromSubscription(manualTopic))
+      .map(NumberInfo(_))
+
+    autoInput
+      .union(manualInput)
+//      .groupByKey
   }
 }
 

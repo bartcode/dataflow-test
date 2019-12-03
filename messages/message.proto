@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package number;
+
+message NumberInfo {
+  int64 timestamp = 1;
+  string name = 2;
+  int32 number = 3;
+  string type = 4;
+}
