@@ -54,12 +54,13 @@ lazy val repl: Project = project
       "com.spotify" %% "scio-repl" % scioVersion
     ),
     Compile / mainClass := Some("com.spotify.scio.repl.ScioShell"),
-    publish / skip := true
+    publish / skip := true,
   )
   .dependsOn(root)
 
 PB.targets in Compile := Seq(
-  scalapb.gen() -> (sourceManaged in Compile).value
+  PB.gens.java -> (sourceManaged in Compile).value,
+  scalapb.gen(javaConversions=true) -> (sourceManaged in Compile).value
 )
 
 // (optional) If you need scalapb/scalapb.proto or anything from

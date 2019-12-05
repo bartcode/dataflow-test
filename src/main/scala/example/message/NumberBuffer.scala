@@ -7,45 +7,55 @@ package example.message
 
 @SerialVersionUID(0L)
 final case class NumberBuffer(
-                             timestamp: _root_.scala.Long = 0L,
-                             name: _root_.scala.Predef.String = "",
-                             number: _root_.scala.Int = 0,
-                             `type`: _root_.scala.Predef.String = ""
-                           ) extends scalapb.GeneratedMessage with scalapb.Message[NumberBuffer] with scalapb.lenses.Updatable[NumberBuffer] {
+                               id: _root_.scala.Long = 0L,
+                               timestamp: _root_.scala.Long = 0L,
+                               name: _root_.scala.Predef.String = "",
+                               number: _root_.scala.Int = 0,
+                               `type`: _root_.scala.Predef.String = ""
+                             ) extends scalapb.GeneratedMessage with scalapb.Message[NumberBuffer] with scalapb.lenses.Updatable[NumberBuffer] {
   @transient
   private[this] var __serializedSizeCachedValue: _root_.scala.Int = 0
+
   private[this] def __computeSerializedValue(): _root_.scala.Int = {
     var __size = 0
 
     {
-      val __value = timestamp
+      val __value = id
       if (__value != 0L) {
         __size += _root_.com.google.protobuf.CodedOutputStream.computeInt64Size(1, __value)
       }
     };
 
     {
+      val __value = timestamp
+      if (__value != 0L) {
+        __size += _root_.com.google.protobuf.CodedOutputStream.computeInt64Size(2, __value)
+      }
+    };
+
+    {
       val __value = name
       if (__value != "") {
-        __size += _root_.com.google.protobuf.CodedOutputStream.computeStringSize(2, __value)
+        __size += _root_.com.google.protobuf.CodedOutputStream.computeStringSize(3, __value)
       }
     };
 
     {
       val __value = number
       if (__value != 0) {
-        __size += _root_.com.google.protobuf.CodedOutputStream.computeInt32Size(3, __value)
+        __size += _root_.com.google.protobuf.CodedOutputStream.computeInt32Size(4, __value)
       }
     };
 
     {
       val __value = `type`
       if (__value != "") {
-        __size += _root_.com.google.protobuf.CodedOutputStream.computeStringSize(4, __value)
+        __size += _root_.com.google.protobuf.CodedOutputStream.computeStringSize(5, __value)
       }
     };
     __size
   }
+
   final override def serializedSize: _root_.scala.Int = {
     var read = __serializedSizeCachedValue
     if (read == 0) {
@@ -54,33 +64,42 @@ final case class NumberBuffer(
     }
     read
   }
+
   def writeTo(`_output__`: _root_.com.google.protobuf.CodedOutputStream): _root_.scala.Unit = {
     {
-      val __v = timestamp
+      val __v = id
       if (__v != 0L) {
         _output__.writeInt64(1, __v)
       }
     };
     {
+      val __v = timestamp
+      if (__v != 0L) {
+        _output__.writeInt64(2, __v)
+      }
+    };
+    {
       val __v = name
       if (__v != "") {
-        _output__.writeString(2, __v)
+        _output__.writeString(3, __v)
       }
     };
     {
       val __v = number
       if (__v != 0) {
-        _output__.writeInt32(3, __v)
+        _output__.writeInt32(4, __v)
       }
     };
     {
       val __v = `type`
       if (__v != "") {
-        _output__.writeString(4, __v)
+        _output__.writeString(5, __v)
       }
     };
   }
+
   def mergeFrom(`_input__`: _root_.com.google.protobuf.CodedInputStream): _root_.example.message.NumberBuffer = {
+    var __id = this.id
     var __timestamp = this.timestamp
     var __name = this.name
     var __number = this.number
@@ -91,110 +110,150 @@ final case class NumberBuffer(
       _tag__ match {
         case 0 => _done__ = true
         case 8 =>
+          __id = _input__.readInt64()
+        case 16 =>
           __timestamp = _input__.readInt64()
-        case 18 =>
+        case 26 =>
           __name = _input__.readString()
-        case 24 =>
+        case 32 =>
           __number = _input__.readInt32()
-        case 34 =>
+        case 42 =>
           __type = _input__.readString()
         case tag => _input__.skipField(tag)
       }
     }
     _root_.example.message.NumberBuffer(
+      id = __id,
       timestamp = __timestamp,
       name = __name,
       number = __number,
       `type` = __type
     )
   }
+
+  def withId(__v: _root_.scala.Long): NumberBuffer = copy(id = __v)
+
   def withTimestamp(__v: _root_.scala.Long): NumberBuffer = copy(timestamp = __v)
+
   def withName(__v: _root_.scala.Predef.String): NumberBuffer = copy(name = __v)
+
   def withNumber(__v: _root_.scala.Int): NumberBuffer = copy(number = __v)
+
   def withType(__v: _root_.scala.Predef.String): NumberBuffer = copy(`type` = __v)
+
   def getFieldByNumber(__fieldNumber: _root_.scala.Int): _root_.scala.Any = {
     (__fieldNumber: @_root_.scala.unchecked) match {
       case 1 => {
-        val __t = timestamp
+        val __t = id
         if (__t != 0L) __t else null
       }
       case 2 => {
+        val __t = timestamp
+        if (__t != 0L) __t else null
+      }
+      case 3 => {
         val __t = name
         if (__t != "") __t else null
       }
-      case 3 => {
+      case 4 => {
         val __t = number
         if (__t != 0) __t else null
       }
-      case 4 => {
+      case 5 => {
         val __t = `type`
         if (__t != "") __t else null
       }
     }
   }
+
   def getField(__field: _root_.scalapb.descriptors.FieldDescriptor): _root_.scalapb.descriptors.PValue = {
     _root_.scala.Predef.require(__field.containingMessage eq companion.scalaDescriptor)
     (__field.number: @_root_.scala.unchecked) match {
-      case 1 => _root_.scalapb.descriptors.PLong(timestamp)
-      case 2 => _root_.scalapb.descriptors.PString(name)
-      case 3 => _root_.scalapb.descriptors.PInt(number)
-      case 4 => _root_.scalapb.descriptors.PString(`type`)
+      case 1 => _root_.scalapb.descriptors.PLong(id)
+      case 2 => _root_.scalapb.descriptors.PLong(timestamp)
+      case 3 => _root_.scalapb.descriptors.PString(name)
+      case 4 => _root_.scalapb.descriptors.PInt(number)
+      case 5 => _root_.scalapb.descriptors.PString(`type`)
     }
   }
+
   def toProtoString: _root_.scala.Predef.String = _root_.scalapb.TextFormat.printToUnicodeString(this)
+
   def companion = _root_.example.message.NumberBuffer
 }
 
 object NumberBuffer extends scalapb.GeneratedMessageCompanion[example.message.NumberBuffer] {
   implicit def messageCompanion: scalapb.GeneratedMessageCompanion[example.message.NumberBuffer] = this
+
   def fromFieldsMap(__fieldsMap: scala.collection.immutable.Map[_root_.com.google.protobuf.Descriptors.FieldDescriptor, _root_.scala.Any]): example.message.NumberBuffer = {
     _root_.scala.Predef.require(__fieldsMap.keys.forall(_.getContainingType() == javaDescriptor), "FieldDescriptor does not match message type.")
     val __fields = javaDescriptor.getFields
     example.message.NumberBuffer(
       __fieldsMap.getOrElse(__fields.get(0), 0L).asInstanceOf[_root_.scala.Long],
-      __fieldsMap.getOrElse(__fields.get(1), "").asInstanceOf[_root_.scala.Predef.String],
-      __fieldsMap.getOrElse(__fields.get(2), 0).asInstanceOf[_root_.scala.Int],
-      __fieldsMap.getOrElse(__fields.get(3), "").asInstanceOf[_root_.scala.Predef.String]
+      __fieldsMap.getOrElse(__fields.get(1), 0L).asInstanceOf[_root_.scala.Long],
+      __fieldsMap.getOrElse(__fields.get(2), "").asInstanceOf[_root_.scala.Predef.String],
+      __fieldsMap.getOrElse(__fields.get(3), 0).asInstanceOf[_root_.scala.Int],
+      __fieldsMap.getOrElse(__fields.get(4), "").asInstanceOf[_root_.scala.Predef.String]
     )
   }
-  implicit def messageReads: _root_.scalapb.descriptors.Reads[example.message.NumberBuffer] = _root_.scalapb.descriptors.Reads{
+
+  implicit def messageReads: _root_.scalapb.descriptors.Reads[example.message.NumberBuffer] = _root_.scalapb.descriptors.Reads {
     case _root_.scalapb.descriptors.PMessage(__fieldsMap) =>
       _root_.scala.Predef.require(__fieldsMap.keys.forall(_.containingMessage == scalaDescriptor), "FieldDescriptor does not match message type.")
       example.message.NumberBuffer(
         __fieldsMap.get(scalaDescriptor.findFieldByNumber(1).get).map(_.as[_root_.scala.Long]).getOrElse(0L),
-        __fieldsMap.get(scalaDescriptor.findFieldByNumber(2).get).map(_.as[_root_.scala.Predef.String]).getOrElse(""),
-        __fieldsMap.get(scalaDescriptor.findFieldByNumber(3).get).map(_.as[_root_.scala.Int]).getOrElse(0),
-        __fieldsMap.get(scalaDescriptor.findFieldByNumber(4).get).map(_.as[_root_.scala.Predef.String]).getOrElse("")
+        __fieldsMap.get(scalaDescriptor.findFieldByNumber(2).get).map(_.as[_root_.scala.Long]).getOrElse(0L),
+        __fieldsMap.get(scalaDescriptor.findFieldByNumber(3).get).map(_.as[_root_.scala.Predef.String]).getOrElse(""),
+        __fieldsMap.get(scalaDescriptor.findFieldByNumber(4).get).map(_.as[_root_.scala.Int]).getOrElse(0),
+        __fieldsMap.get(scalaDescriptor.findFieldByNumber(5).get).map(_.as[_root_.scala.Predef.String]).getOrElse("")
       )
     case _ => throw new RuntimeException("Expected PMessage")
   }
+
   def javaDescriptor: _root_.com.google.protobuf.Descriptors.Descriptor = MessageProto.javaDescriptor.getMessageTypes.get(0)
+
   def scalaDescriptor: _root_.scalapb.descriptors.Descriptor = MessageProto.scalaDescriptor.messages(0)
+
   def messageCompanionForFieldNumber(__number: _root_.scala.Int): _root_.scalapb.GeneratedMessageCompanion[_] = throw new MatchError(__number)
+
   lazy val nestedMessagesCompanions: Seq[_root_.scalapb.GeneratedMessageCompanion[_ <: _root_.scalapb.GeneratedMessage]] = Seq.empty
+
   def enumCompanionForFieldNumber(__fieldNumber: _root_.scala.Int): _root_.scalapb.GeneratedEnumCompanion[_] = throw new MatchError(__fieldNumber)
+
   lazy val defaultInstance = example.message.NumberBuffer(
+    id = 0L,
     timestamp = 0L,
     name = "",
     number = 0,
     `type` = ""
   )
-  implicit class NumberItemLens[UpperPB](_l: _root_.scalapb.lenses.Lens[UpperPB, example.message.NumberBuffer]) extends _root_.scalapb.lenses.ObjectLens[UpperPB, example.message.NumberBuffer](_l) {
+
+  implicit class NumberBufferLens[UpperPB](_l: _root_.scalapb.lenses.Lens[UpperPB, example.message.NumberBuffer]) extends _root_.scalapb.lenses.ObjectLens[UpperPB, example.message.NumberBuffer](_l) {
+    def id: _root_.scalapb.lenses.Lens[UpperPB, _root_.scala.Long] = field(_.id)((c_, f_) => c_.copy(id = f_))
+
     def timestamp: _root_.scalapb.lenses.Lens[UpperPB, _root_.scala.Long] = field(_.timestamp)((c_, f_) => c_.copy(timestamp = f_))
+
     def name: _root_.scalapb.lenses.Lens[UpperPB, _root_.scala.Predef.String] = field(_.name)((c_, f_) => c_.copy(name = f_))
+
     def number: _root_.scalapb.lenses.Lens[UpperPB, _root_.scala.Int] = field(_.number)((c_, f_) => c_.copy(number = f_))
+
     def `type`: _root_.scalapb.lenses.Lens[UpperPB, _root_.scala.Predef.String] = field(_.`type`)((c_, f_) => c_.copy(`type` = f_))
   }
-  final val TIMESTAMP_FIELD_NUMBER = 1
-  final val NAME_FIELD_NUMBER = 2
-  final val NUMBER_FIELD_NUMBER = 3
-  final val TYPE_FIELD_NUMBER = 4
+
+  final val ID_FIELD_NUMBER = 1
+  final val TIMESTAMP_FIELD_NUMBER = 2
+  final val NAME_FIELD_NUMBER = 3
+  final val NUMBER_FIELD_NUMBER = 4
+  final val TYPE_FIELD_NUMBER = 5
+
   def of(
+          id: _root_.scala.Long,
           timestamp: _root_.scala.Long,
           name: _root_.scala.Predef.String,
           number: _root_.scala.Int,
           `type`: _root_.scala.Predef.String
         ): _root_.example.message.NumberBuffer = _root_.example.message.NumberBuffer(
+    id,
     timestamp,
     name,
     number,

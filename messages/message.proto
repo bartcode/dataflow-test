@@ -2,9 +2,10 @@ syntax = "proto3";
 
 package number;
 
-message NumberInfo {
-  int64 timestamp = 1;
-  string name = 2;
-  int32 number = 3;
-  string type = 4;
+message NumberBuffer {
+  int64 id = 1;
+  int64 timestamp = 2;
+  string name = 3;
+  int32 number = 4;
+  string type = 5;
 }
