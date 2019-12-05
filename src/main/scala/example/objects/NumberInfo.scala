@@ -1,25 +1,25 @@
 package example.objects
 
-import java.time.ZoneOffset
+import org.joda.time.{DateTime, Instant}
+import example.proto.message.NumberBuffer
 
-import example.message.NumberBuffer
-import java.time.{Instant, LocalDateTime}
-
-case class NumberInfo(timestamp: Option[LocalDateTime] = None,
-                      number: Option[Int] = None,
-                      `type`: Option[String],
-                      name: Option[String])
+case class NumberInfo(id: Option[Long],
+                      timestamp: Option[Instant],
+                      name: Option[String],
+                      number: Option[Long],
+                      `type`: Option[String])
   extends NumberMessage[NumberInfo] {
-
+  def ++(other: NumberInfo): NumberInfo = this.copy()
 }
 
 object NumberInfo {
   def apply(buffer: NumberBuffer): NumberInfo = {
     new NumberInfo(
-      timestamp = Some(LocalDateTime.ofInstant(Instant.ofEpochSecond(buffer.timestamp), ZoneOffset.UTC)),
+      id = Some(buffer.id),
+      timestamp = Some(new DateTime(buffer.timestamp).toInstant),
+      name = Some(buffer.name),
       number = Some(buffer.number),
-      `type` = Some(buffer.`type`),
-      name = Some(buffer.name)
+      `type` = Some(buffer.`type`)
     )
   }
 }

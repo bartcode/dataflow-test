@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package number;
+package proto3;
+
+option java_package = "example.proto";
 
 message NumberBuffer {
   int64 id = 1;

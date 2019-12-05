@@ -35,6 +35,7 @@ lazy val root: Project = project
     run / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     libraryDependencies ++= Seq(
       "com.spotify" %% "scio-core" % scioVersion,
+      "com.spotify" %% "scio-bigquery" % scioVersion,
       "com.spotify" %% "scio-test" % scioVersion % Test,
       "org.apache.beam" % "beam-runners-direct-java" % beamVersion,
       "org.apache.beam" % "beam-runners-google-cloud-dataflow-java" % beamVersion,
@@ -62,8 +63,3 @@ PB.targets in Compile := Seq(
   PB.gens.java -> (sourceManaged in Compile).value,
   scalapb.gen(javaConversions=true) -> (sourceManaged in Compile).value
 )
-
-// (optional) If you need scalapb/scalapb.proto or anything from
-// google/protobuf/*.proto
-libraryDependencies +=
-  "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"

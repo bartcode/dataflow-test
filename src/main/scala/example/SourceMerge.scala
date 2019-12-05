@@ -1,13 +1,18 @@
 package example
 
-import com.google.protobuf.Message
 import com.spotify.scio._
-import example.message.NumberBuffer
-
-//import org.joda.time.Duration
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO
+import com.spotify.scio.values.{SCollection, WindowOptions}
+import example.proto.message.NumberBuffer
+import example.objects.NumberInfo
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow
+import org.joda.time.Duration
 import org.slf4j.LoggerFactory
+import org.apache.beam.sdk.transforms.windowing.TimestampCombiner.LATEST
 
+//import com.spotify.scio.bigquery.types.BigQueryType
+
+//@BigQueryType.toTable
+//case class NumberResult(number_avg: Float, number_type: String)
 
 /*
 sbt "runMain example.SourceMerge"
@@ -15,12 +20,23 @@ sbt "runMain example.SourceMerge"
 
 class SourceMerge(@transient val sc: ScioContext) extends Serializable {
   def processSources(autoTopic: String, manualTopic: String, numberInfo: String): Unit = {
-    val autoInput = sc.customInput("auto",
-      PubsubIO
-        .readProtos(classOf[NumberBuffer].asSubclass(classOf[Message]))
-        .fromSubscription(autoTopic))
+    val autoInput: SCollection[NumberBuffer] = sc.pubsubSubscription[NumberBuffer](autoTopic)
+    val manualInput: SCollection[NumberBuffer] = sc.pubsubSubscription[NumberBuffer](manualTopic)
 
-    autoInput.map(x => x)
+//    @BigQueryType.fromTable(numberInfo)
+//    class NumberInfoRow
+
+    autoInput
+      .union(manualInput)
+      .map(NumberInfo(_))
+      .timestampBy(_.timestamp.get)
+      .withFixedWindows(Duration.standardSeconds(10), options = WindowOptions(timestampCombiner = LATEST))
+      .map(_.number)
+      .sum
+      .withWindow[IntervalWindow]
+      .map {
+        case (score, window) => (window.end(), score)
+      }
   }
 }
 
@@ -37,6 +53,7 @@ object SourceMerge {
     )
 
     val numberInfo = s"$projectName:playground.numbers"
+    val numberResults = s"$projectName:playground.results"
 
     val (sc, args) = ContextAndArgs(cmdlineArgs ++ Array(
       s"--stagingLocation=$bucketPath/staging",
@@ -54,7 +71,8 @@ object SourceMerge {
       manualTopic = subscriptions("manual"),
       numberInfo = numberInfo)
 
-    val result = sc.close().waitUntilFinish()
+    sc.close().waitUntilFinish()
+    //    val result = sc.close().waitUntilFinish()
     //    logger.info(result)
   }
 }

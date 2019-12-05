@@ -20,6 +20,12 @@ A few things need to be set up on the Google Cloud Platform:
     - `sensor-manual`
 - Import [`./data/numbers.csv`](./data/numbers.csv) into a BigQuery table called `numbers`.
 
+## Notes
+- Compile the proto buffer by running the following command:
+```bash
+$ scalapbc ./src/main/resources/message.proto --scala_out=java_conversions:./src/main/scala --java_out=./src/main/java --python_out=./client
+```
+
 ## Features
 This project comes with number of preconfigured features, including:
 
