@@ -8,9 +8,7 @@ case class NumberInfo(id: Option[Long],
                       name: Option[String],
                       number: Option[Long],
                       `type`: Option[String])
-  extends NumberMessage[NumberInfo] {
-  def ++(other: NumberInfo): NumberInfo = this.copy()
-}
+  extends NumberMessage[NumberInfo]
 
 object NumberInfo {
   def apply(buffer: NumberBuffer): NumberInfo = {
