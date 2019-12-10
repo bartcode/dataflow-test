@@ -11,9 +11,9 @@ lazy val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   version := "0.1.0-SNAPSHOT",
   scalaVersion := "2.12.10",
   scalacOptions ++= Seq("-target:jvm-1.8",
-                        "-deprecation",
-                        "-feature",
-                        "-unchecked"),
+    "-deprecation",
+    "-feature",
+    "-unchecked"),
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
 )
 
@@ -21,7 +21,14 @@ lazy val paradiseDependency =
   "org.scalamacros" % "paradise" % scalaMacrosVersion cross CrossVersion.full
 lazy val macroSettings = Seq(
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+  libraryDependencies += "com.typesafe" % "config" % "1.4.0",
   addCompilerPlugin(paradiseDependency)
+)
+
+PB.targets in Compile := Seq(
+  PB.gens.java -> (sourceManaged in Compile).value,
+  PB.gens.python -> file("client/src/message"),
+  scalapb.gen(javaConversions = true) -> (sourceManaged in Compile).value
 )
 
 lazy val root: Project = project
@@ -58,8 +65,3 @@ lazy val repl: Project = project
     publish / skip := true,
   )
   .dependsOn(root)
-
-PB.targets in Compile := Seq(
-  PB.gens.java -> (sourceManaged in Compile).value,
-  scalapb.gen(javaConversions=true) -> (sourceManaged in Compile).value
-)

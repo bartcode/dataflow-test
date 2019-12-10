@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 
 from google.cloud import pubsub_v1
-from src.message_pb2 import NumberBuffer
+from src.message.message_pb2 import NumberBuffer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,7 +17,7 @@ def main() -> None:
     :return: None
     """
     project_id = 'playground-bart'
-    topic = 'manual'
+    topic = 'sensor'
 
     publisher = pubsub_v1.PublisherClient()
     topic_name = f'projects/{project_id}/topics/{topic}'

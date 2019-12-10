@@ -2,3 +2,4 @@
 .bigquery/
 .repl/
 target/
+.DS_Store
