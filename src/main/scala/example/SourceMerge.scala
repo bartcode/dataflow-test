@@ -71,7 +71,7 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
         _.map(x => (x._1._1, (x._1._2, x._2)))
           .hashLeftJoin(sumCounts))
       .transform("Tuple values")(
-        _.map(x => (x._1, x._2._1._1, x._2._1._2.toString, x._2._2.getOrElse(1.toLong))))
+        _.map(x => (x._1, x._2._1._1, x._2._1._2.toString, x._2._2.getOrElse(0.toLong))))
       .transform("Convert into TableRow")(
         _.map(x => TableRow(Map(
           "update_time" -> Timestamp(x._1),
