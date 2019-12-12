@@ -19,7 +19,7 @@ import scala.collection.JavaConverters._
 
 class SourceMerge(@transient val sc: ScioContext) extends Serializable {
 
-  import example.SourceMerge.{NumberInfoRow, NumberResults}
+  import example.SourceMerge.NumberResults
 
   /**
    * Process Pub/Sub source and BigQuery table.
@@ -47,7 +47,7 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
     val sumCounts = windowedInput
       .transform("Determine counted values")(_.countByKey)
 
-    val numberInfoSideInput = getNumberInfoSideInput
+    val numberInfoSideInput = getNumberInfoSideInput(numberInfo)
 
     windowedInput
       .transform("Sum values")(
@@ -108,10 +108,16 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
   /**
    * Load typed BigQuery table which contains information about the numbers.
    *
+   * @param tableSpec : Table name to load.
    * @return Side input
    */
-  def getNumberInfoSideInput: SideInput[Seq[(Long, Long, String)]] = sc.typedBigQuery[NumberInfoRow]()
-    .map(x => (x.lower_bound.get, x.upper_bound.get, x.number_type.get))
+  def getNumberInfoSideInput(tableSpec: String): SideInput[Seq[(Long, Long, String)]] = sc
+    .customInput(s"Read number info",
+      BigQueryIO
+        .readTableRows()
+        .from(tableSpec)
+        .usingStandardSql())
+    .map(x => (x.getLong("lower_bound"), x.getLong("upper_bound"), x.getString("number_type")))
     .asListSideInput
 }
 
@@ -146,8 +152,5 @@ object SourceMerge {
   @BigQueryType.toTable
   case class NumberResults(update_time: Instant, number_sum: Int,
                            number_count: Int, number_type: String, version: String)
-
-  @BigQueryType.fromTable("playground-bart:playground.numbers")
-  class NumberInfoRow
 
 }
