@@ -1,10 +1,10 @@
 package example
 
-import com.typesafe.config.{Config, ConfigFactory}
 import com.spotify.scio._
 import com.spotify.scio.bigquery._
 import com.spotify.scio.bigquery.types.BigQueryType
 import com.spotify.scio.values.{SCollection, SideInput, WindowOptions}
+import com.typesafe.config.{Config, ConfigFactory}
 import example.proto.message.NumberBuffer
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
@@ -24,11 +24,11 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
   /**
    * Process Pub/Sub source and BigQuery table.
    *
-   * @param inputSubscription: Path to subscription.
-   * @param numberInfo: BigQuery table reference.
+   * @param inputSubscription : Path to subscription.
+   * @param numberInfo        : BigQuery table reference.
    */
   // noinspection ScalaStyle
-  def processSources(inputSubscription: String, numberInfo: String): Unit = {
+  def processSources(inputSubscription: String, numberInfo: String, resultInfoTable: String): Unit = {
     val windowedInput = getInputStream(inputSubscription)
       .transform("Timestamp")(
         _.timestampBy(x =>
@@ -54,7 +54,7 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
         _.sumByKey)
       .transform("Extract values")(
         _.map(x => (x._1, x._2))) // Number length, (timestamp, sum)
-      .withSideInputs(numberInfoSideInput)
+      .withSideInputs(numberInfoSideInput) // Since the right side is small, a side input can be used.
       .map {
         case (score, side) =>
           val numberInfoMap = side(numberInfoSideInput)
@@ -63,28 +63,32 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
               case (lowerBound: Long, upperBound: Long, _: String) =>
                 (lowerBound <= score._2) && (upperBound >= score._2)
             }
-              .map(x => x._3)
+              .map(x => x._3) // The number type: "hundreds", "thousands", etc.
               .head)
       }
       .toSCollection
       .transform("Combine with counts")(
-        _.map(x => (x._1._1, (x._1._2, x._2)))
+        _.map { case ((timestamp, numberSum), numberType) => (timestamp, (numberSum, numberType)) }
           .hashLeftJoin(sumCounts))
       .transform("Tuple values")(
-        _.map(x => (x._1, x._2._1._1, x._2._1._2.toString, x._2._2.getOrElse(0.toLong))))
+        _.map { case (timestamp, ((numberSum, numberType), numberCount)) =>
+          (timestamp, numberSum, numberType, numberCount.getOrElse(0.toLong))
+        })
       .transform("Convert into TableRow")(
-        _.map(x => TableRow(Map(
-          "update_time" -> Timestamp(x._1),
-          "number_sum" -> x._2,
-          "number_count" -> x._4,
-          "number_type" -> x._3,
-          "version" -> "run-1")
-          .map(kv => (kv._1, kv._2))
-          .toList: _*)))
+        _.map {
+          case (timestamp, numberSum, numberType, numberCount) => TableRow(Map(
+            "update_time" -> Timestamp(timestamp),
+            "number_sum" -> numberSum,
+            "number_count" -> numberCount,
+            "number_type" -> numberType,
+            "version" -> "run-1")
+            .map(kv => (kv._1, kv._2))
+            .toList: _*)
+        })
       .saveAsCustomOutput("Save aggregate to BQ",
         BigQueryIO
           .writeTableRows()
-          .to("playground-bart:playground.results")
+          .to(resultInfoTable)
           .withSchema(BigQueryType[NumberResults].schema)
           .withCreateDisposition(CreateDisposition.CREATE_IF_NEEDED)
           .withWriteDisposition(WriteDisposition.WRITE_APPEND))
@@ -118,6 +122,7 @@ object SourceMerge {
   val inputSubscription: String = config.getString("pipeline.input_subscription")
   val region: String = config.getString("pipeline.region")
   val numberInfo: String = config.getString("pipeline.number_info_table")
+  val resultInfoTable: String = config.getString("pipeline.result_table")
 
   def main(cmdlineArgs: Array[String]): Unit = {
     val (sc, _) = ContextAndArgs(cmdlineArgs ++ Array(
@@ -133,7 +138,7 @@ object SourceMerge {
 
     val sm = new SourceMerge(sc)
 
-    sm.processSources(inputSubscription = inputSubscription, numberInfo = numberInfo)
+    sm.processSources(inputSubscription, numberInfo, resultInfoTable)
 
     sc.close().waitUntilFinish()
   }
