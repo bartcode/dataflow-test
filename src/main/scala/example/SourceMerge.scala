@@ -1,11 +1,14 @@
 package example
 
+import java.util.NoSuchElementException
+
 import com.spotify.scio._
 import com.spotify.scio.bigquery._
 import com.spotify.scio.bigquery.types.BigQueryType
 import com.spotify.scio.values.{SCollection, SideInput, WindowOptions}
 import com.typesafe.config.{Config, ConfigFactory}
 import example.proto.message.NumberBuffer
+import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.{CreateDisposition, WriteDisposition}
@@ -17,74 +20,38 @@ import org.joda.time.{DateTime, Duration, Instant}
 import scala.collection.JavaConverters._
 
 
-class SourceMerge(@transient val sc: ScioContext) extends Serializable {
+/**
+ * Process Pub/Sub source and BigQuery table.
+ *
+ * @param sc                : ScioContext.
+ * @param inputSubscription : Path to subscription.
+ * @param numberInfoTable   : BigQuery table reference.
+ * @param resultInfoTable   : Table to write results to.
+ */
+class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
+                  numberInfoTable: String, resultInfoTable: String,
+                  windowSeconds: Int, allowedLateness: Int) extends Serializable {
 
   import example.SourceMerge.NumberResults
 
   /**
-   * Process Pub/Sub source and BigQuery table.
-   *
-   * @param inputSubscription : Path to subscription.
-   * @param numberInfo        : BigQuery table reference.
+   * Process data.
    */
-  // noinspection ScalaStyle
-  def processSources(inputSubscription: String, numberInfo: String, resultInfoTable: String): Unit = {
-    val windowedInput = getInputStream(inputSubscription)
-      .transform("Timestamp")(
-        _.timestampBy(x =>
-          new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(5)))
-      .transform("Apply window functions")(
-        _.withFixedWindows(Duration.standardSeconds(5),
-          options = WindowOptions(
-            timestampCombiner = LATEST,
-            accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
-            trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
-            allowedLateness = Duration.standardSeconds(5)))
-          .map(_.number)
-          .withWindow[IntervalWindow]
-          .map { case (score, window) => (window.end(), score) })
+  def processSources(): Unit = {
+    val windowedInput = getWindowedStream
 
-    val sumCounts = windowedInput
-      .transform("Determine counted values")(_.countByKey)
+    val numberCount = windowedInput
+      .transform("Determine counted values")(_.count)
+      .asSingletonSideInput
 
-    val numberInfoSideInput = getNumberInfoSideInput(numberInfo)
+    val aggregatedValues: SCollection[(Int, String)] = windowedInput
+      .aggregateValues(numberInfoTable)
 
-    windowedInput
-      .transform("Sum values")(
-        _.sumByKey)
-      .transform("Extract values")(
-        _.map(x => (x._1, x._2))) // Number length, (timestamp, sum)
-      .withSideInputs(numberInfoSideInput) // Since the right side is small, a side input can be used.
-      .map {
-        case (score, side) =>
-          val numberInfoMap = side(numberInfoSideInput)
-          (score,
-            numberInfoMap.filter {
-              case (lowerBound: Long, upperBound: Long, _: String) =>
-                (lowerBound <= score._2) && (upperBound >= score._2)
-            }
-              .map(x => x._3) // The number type: "hundreds", "thousands", etc.
-              .head)
-      }
+    aggregatedValues
+      .withSideInputs(numberCount)
+      .map { case ((numberSum, numberType), side) => (numberSum, numberType, side(numberCount)) }
       .toSCollection
-      .transform("Combine with counts")(
-        _.map { case ((timestamp, numberSum), numberType) => (timestamp, (numberSum, numberType)) }
-          .hashLeftJoin(sumCounts))
-      .transform("Tuple values")(
-        _.map { case (timestamp, ((numberSum, numberType), numberCount)) =>
-          (timestamp, numberSum, numberType, numberCount.getOrElse(0.toLong))
-        })
-      .transform("Convert into TableRow")(
-        _.map {
-          case (timestamp, numberSum, numberType, numberCount) => TableRow(Map(
-            "update_time" -> Timestamp(timestamp),
-            "number_sum" -> numberSum,
-            "number_count" -> numberCount,
-            "number_type" -> numberType,
-            "version" -> "run-1")
-            .map(kv => (kv._1, kv._2))
-            .toList: _*)
-        })
+      .transformToTableRow
       .saveAsCustomOutput("Save aggregate to BQ",
         BigQueryIO
           .writeTableRows()
@@ -94,13 +61,87 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
           .withWriteDisposition(WriteDisposition.WRITE_APPEND))
   }
 
+  implicit class scSideInputProcessor(pipeline: SCollection[Int]) {
+    /**
+     * Add side input and aggregate values.
+     *
+     * @param numberInfoTable : number info table to use.
+     * @return SCollection with time window and summed value.
+     */
+    def aggregateValues(numberInfoTable: String): SCollection[(Int, String)] = {
+      val numberInfoSideInput = getNumberInfoSideInput(numberInfoTable)
+
+      pipeline
+        .transform("Sum values")(
+          _.sum)
+        .withSideInputs(numberInfoSideInput) // Since the right side is small, a side input can be used.
+        .map {
+          case (sum, side) =>
+            val numberInfoMap = side(numberInfoSideInput)
+            try {
+              (sum,
+                numberInfoMap.filter {
+                  case (lowerBound: Long, upperBound: Long, _: String) =>
+                    (lowerBound <= sum) && (upperBound >= sum)
+                }
+                  .map(x => x._3) // The number type: "hundreds", "thousands", etc.
+                  .head)
+            } catch {
+              case _: NoSuchElementException => (sum, "unknown")
+            }
+        }
+        .toSCollection
+    }
+  }
+
+  implicit class scJoinProcessor(pipeline: SCollection[(Int, String, Long)]) {
+    /**
+     * Transform joined data into TableRow.
+     *
+     * @return SCollection of TableRows
+     */
+    def transformToTableRow: SCollection[TableRow] = {
+      pipeline
+        .withWindow[IntervalWindow]
+        .map { case (sumDetails, window) => (window.end(), sumDetails) }
+        .transform("Convert into TableRow")(
+          _.map {
+            case (timestamp, (numberSum, numberType, numberCount)) => TableRow(Map(
+              "update_time" -> Timestamp(timestamp),
+              "number_sum" -> numberSum,
+              "number_count" -> numberCount,
+              "number_type" -> numberType,
+              "version" -> "run-2")
+              .map(kv => (kv._1, kv._2))
+              .toList: _*)
+          })
+    }
+  }
+
+  /**
+   * Windowed stream with sum and window.
+   *
+   * @return Windowed SCollection with time window and sum.
+   */
+  def getWindowedStream: SCollection[Int] = getInputStream
+    .transform("Timestamp")(
+      _.timestampBy(x =>
+        new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(windowSeconds)))
+    .transform("Apply window functions")(
+      _.withFixedWindows(Duration.standardSeconds(windowSeconds),
+        options = WindowOptions(
+          timestampCombiner = LATEST,
+          accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
+          trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
+          allowedLateness = Duration.standardSeconds(allowedLateness)))
+        .map(_.number))
+
   /**
    * Load parsed stream of messages from Google Cloud Pub/Sub.
    *
-   * @param inputSubscription : Path to subscription.
    * @return SCollection of parsed messages.
    */
-  def getInputStream(inputSubscription: String): SCollection[NumberBuffer] = sc
+  def getInputStream: SCollection[NumberBuffer] = sc
     .pubsubSubscription[Array[Byte]](inputSubscription)
     .transform("Parse objects")(
       _.map(NumberBuffer.parseFrom))
@@ -115,8 +156,7 @@ class SourceMerge(@transient val sc: ScioContext) extends Serializable {
     .customInput(s"Read number info",
       BigQueryIO
         .readTableRows()
-        .from(tableSpec)
-        .usingStandardSql())
+        .from(tableSpec))
     .map(x => (x.getLong("lower_bound"), x.getLong("upper_bound"), x.getString("number_type")))
     .asListSideInput
 }
@@ -125,26 +165,37 @@ object SourceMerge {
   val config: Config = ConfigFactory.load()
   val projectId: String = config.getString("pipeline.project_id")
   val bucketPath: String = config.getString("pipeline.bucket")
-  val inputSubscription: String = config.getString("pipeline.input_subscription")
+  val inputSubscription: String = config.getString("pipeline.subscription_input")
   val region: String = config.getString("pipeline.region")
   val numberInfo: String = config.getString("pipeline.number_info_table")
   val resultInfoTable: String = config.getString("pipeline.result_table")
+  val windowSeconds: Int = config.getInt("pipeline.window_seconds")
+  val allowedLateness: Int = config.getInt("pipeline.allowed_lateness_seconds")
 
+  /**
+   * Main method
+   *
+   * @param cmdlineArgs : Command-line arguments
+   */
   def main(cmdlineArgs: Array[String]): Unit = {
     val (sc, _) = ContextAndArgs(cmdlineArgs ++ Array(
       s"--stagingLocation=$bucketPath/staging",
       s"--tempLocation=$bucketPath/temp/"))
 
-    sc.options.setJobName("example-etl")
+    sc.options.setJobName("example-etl-" + (DateTime.now().toString("YYYY-MM-dd-HHmmss")))
     sc.optionsAs[DataflowPipelineOptions].setProject(projectId)
     sc.optionsAs[DataflowPipelineOptions].setRegion(region)
-    sc.optionsAs[DataflowPipelineOptions].setExperiments(List("shuffle_mode=service", "flexRSGoal=OPTIMIZED").asJava)
+    sc.optionsAs[DataflowPipelineOptions].setWorkerMachineType("n1-standard-2")
+    sc.optionsAs[DataflowPipelineOptions].setExperiments(List("flexRSGoal=OPTIMIZED").asJava)
     sc.optionsAs[DataflowPipelineOptions].setNumWorkers(1)
     sc.optionsAs[DataflowPipelineOptions].setStreaming(true)
 
-    val sm = new SourceMerge(sc)
+    sc.options.setRunner(classOf[DataflowRunner])
 
-    sm.processSources(inputSubscription, numberInfo, resultInfoTable)
+    val sm = new SourceMerge(sc, inputSubscription, numberInfo, resultInfoTable,
+      windowSeconds = windowSeconds, allowedLateness = allowedLateness)
+
+    sm.processSources()
 
     sc.close().waitUntilFinish()
   }
