@@ -1,24 +1,24 @@
 package example
 
-import java.util.NoSuchElementException
-
 import com.spotify.scio._
 import com.spotify.scio.bigquery._
 import com.spotify.scio.bigquery.types.BigQueryType
 import com.spotify.scio.values.{SCollection, SideInput, WindowOptions}
+import com.twitter.algebird.{Aggregator, Moments, MultiAggregator}
 import com.typesafe.config.{Config, ConfigFactory}
 import example.proto.message.NumberBuffer
 import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.{CreateDisposition, WriteDisposition}
-import org.apache.beam.sdk.transforms.windowing.TimestampCombiner
-import org.apache.beam.sdk.transforms.windowing.{AfterPane, IntervalWindow, Repeatedly}
+import org.apache.beam.sdk.transforms.windowing.{AfterWatermark, IntervalWindow, Repeatedly, TimestampCombiner}
 import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.joda.time.{DateTime, Duration, Instant}
 
 import scala.collection.JavaConverters._
+import scala.util.Try
 
+case class NumberAggregate(sum: Double, count: Long, numberType: Option[String] = None)
 
 /**
  * Process Pub/Sub source and BigQuery table.
@@ -37,21 +37,10 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
   /**
    * Process data.
    */
-  def processSources(): Unit = {
-    val windowedInput = getWindowedStream
-
-    val numberCount = windowedInput
-          .transform("Determine counted values")(_.count)
-          .asListSideInput // Sometimes and SCollection can contain more than a single item. Use a list to be sure.
-
-    val aggregatedValues: SCollection[(Int, String)] = windowedInput
+  def processSources(): Unit =
+    getWindowedStream
       .aggregateValues(numberInfoTable)
-
-    aggregatedValues
-      .withSideInputs(numberCount)
-      .map { case ((numberSum, numberType), side) => (numberSum, numberType, side(numberCount).max) }
-      .toSCollection
-      .transformToTableRow
+      .transformToTableRow()
       .saveAsCustomOutput("Save aggregate to BQ",
         BigQueryIO
           .writeTableRows()
@@ -59,58 +48,69 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
           .withSchema(BigQueryType[NumberResults].schema)
           .withCreateDisposition(CreateDisposition.CREATE_IF_NEEDED)
           .withWriteDisposition(WriteDisposition.WRITE_APPEND))
-  }
 
-  implicit class scSideInputProcessor(pipeline: SCollection[Int]) {
+  implicit class scSideInputProcessor(pipeline: SCollection[NumberBuffer]) {
     /**
      * Add side input and aggregate values.
      *
-     * @param numberInfoTable : number info table to use.
+     * @param numberInfoTable : Number info table to use.
      * @return SCollection with time window and summed value.
      */
-    def aggregateValues(numberInfoTable: String): SCollection[(Int, String)] = {
+    def aggregateValues(numberInfoTable: String): SCollection[NumberAggregate] = {
       val numberInfoSideInput = getNumberInfoSideInput(numberInfoTable)
 
+      val sumOp = Aggregator.numericSum[Int].composePrepare[NumberBuffer](_.number)
+      val momentsOp = Moments.aggregator.composePrepare[NumberBuffer](_.number)
+
+      val colAgg = MultiAggregator((sumOp, momentsOp)).andThenPresent {
+        case (sum, moments) => NumberAggregate(sum, moments.count)
+      }
+
       pipeline
-        .transform("Sum values")(_.sum)
-        .withSideInputs(numberInfoSideInput) // Since the right side is small, a side input can be used.
-        .map {
-          case (sum, side) =>
-            val numberInfoMap = side(numberInfoSideInput)
-            try {
-              (sum,
-                numberInfoMap.filter {
-                  case (lowerBound: Long, upperBound: Long, _: String) =>
-                    (lowerBound <= sum) && (upperBound >= sum)
-                }
-                  .map(x => x._3) // The number type: "hundreds", "thousands", etc.
-                  .head)
-            } catch {
-              case _: NoSuchElementException => (sum, "unknown")
+        .aggregate(colAgg)
+        .transform("Add side input")(
+          // Since the right side is small, a side input can be used.
+          _.withSideInputs(numberInfoSideInput)
+            .map {
+              case (aggregate, side) =>
+                val numberInfoMap = side(numberInfoSideInput)
+                aggregate.copy(
+                  sum = aggregate.sum,
+                  count = aggregate.count,
+                  numberType = Try(
+                    numberInfoMap.filter {
+                      case (lowerBound: Long, upperBound: Long, _: String) =>
+                        (lowerBound <= aggregate.sum) && (upperBound >= aggregate.sum)
+                    }
+                      .map(x => x._3)
+                      .head
+                  ).toOption)
             }
-        }
-        .toSCollection
+            .toSCollection
+        )
     }
   }
 
-  implicit class scJoinProcessor(pipeline: SCollection[(Int, String, Long)]) {
+  implicit class scJoinProcessor(pipeline: SCollection[NumberAggregate]) {
     /**
      * Transform joined data into TableRow.
      *
      * @return SCollection of TableRows
      */
-    def transformToTableRow: SCollection[TableRow] = {
+    def transformToTableRow(): SCollection[TableRow] = {
       pipeline
-        .withWindow[IntervalWindow]
-        .map { case (sumDetails, window) => (window.end(), sumDetails) }
+        .transform("Add window information")(
+          _.withWindow[IntervalWindow]
+            .map { case (aggregate, window) => (window.end(), aggregate) }
+        )
         .transform("Convert into TableRow")(
           _.map {
-            case (timestamp, (numberSum, numberType, numberCount)) => TableRow(Map(
+            case (timestamp, aggregate) => TableRow(Map(
               "update_time" -> Timestamp(timestamp),
-              "number_sum" -> numberSum,
-              "number_count" -> numberCount,
-              "number_type" -> numberType,
-              "version" -> "run-2")
+              "number_sum" -> aggregate.sum,
+              "number_count" -> aggregate.count,
+              "number_type" -> aggregate.numberType.getOrElse("unknown"),
+              "version" -> "run-1")
               .map(kv => (kv._1, kv._2))
               .toList: _*)
           })
@@ -118,22 +118,21 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
   }
 
   /**
-   * Windowed stream with sum and window.
+   * Windowed stream with sum and window information.
    *
    * @return Windowed SCollection with time window and sum.
    */
-  def getWindowedStream: SCollection[Int] = getInputStream
-    .transform("Timestamp")(
+  def getWindowedStream: SCollection[NumberBuffer] = getInputStream
+    .transform("Timestamp records")(
       _.timestampBy(x =>
         new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(windowSeconds)))
     .transform("Apply window functions")(
       _.withFixedWindows(Duration.standardSeconds(windowSeconds),
         options = WindowOptions(
-          timestampCombiner = TimestampCombiner.LATEST,
+          timestampCombiner = TimestampCombiner.END_OF_WINDOW,
           accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
-          trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
-          allowedLateness = Duration.standardSeconds(allowedLateness)))
-        .map(_.number))
+          trigger = Repeatedly.forever(AfterWatermark.pastEndOfWindow()),
+          allowedLateness = Duration.standardSeconds(allowedLateness))))
 
   /**
    * Load parsed stream of messages from Google Cloud Pub/Sub.
@@ -156,8 +155,12 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
       BigQueryIO
         .readTableRows()
         .from(tableSpec))
-    .map(x => (x.getLong("lower_bound"), x.getLong("upper_bound"), x.getString("number_type")))
-    .asListSideInput
+    .transform("Extract boundaries")(
+      _.map(x => (
+        x.getLong("lower_bound"),
+        x.getLong("upper_bound"),
+        x.getString("number_type")))
+    ).asListSideInput
 }
 
 object SourceMerge {
@@ -201,6 +204,7 @@ object SourceMerge {
 
   @BigQueryType.toTable
   case class NumberResults(update_time: Instant, number_sum: Int,
-                           number_count: Int, number_type: String, version: String)
+                           number_count: Int, number_type: String,
+                           version: String)
 
 }

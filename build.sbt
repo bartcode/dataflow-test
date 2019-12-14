@@ -20,8 +20,10 @@ lazy val commonSettings = Defaults.coreDefaultSettings ++ Seq(
 lazy val paradiseDependency =
   "org.scalamacros" % "paradise" % scalaMacrosVersion cross CrossVersion.full
 lazy val macroSettings = Seq(
-  libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-  libraryDependencies += "com.typesafe" % "config" % "1.4.0",
+  libraryDependencies ++= Seq(
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+    "com.typesafe" % "config" % "1.4.0",
+    "com.twitter" %% "algebird-core" % "0.13.6"),
   addCompilerPlugin(paradiseDependency)
 )
 
