@@ -125,7 +125,7 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
   def getWindowedStream: SCollection[NumberBuffer] = getInputStream
     .transform("Timestamp records")(
       _.timestampBy(x =>
-        new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(windowSeconds)))
+        new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(allowedLateness)))
     .transform("Apply window functions")(
       _.withFixedWindows(Duration.standardSeconds(windowSeconds),
         options = WindowOptions(
