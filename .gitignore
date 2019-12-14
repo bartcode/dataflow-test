@@ -1,2 +1,5 @@
-*.class
-*.log
+.idea/
+.bigquery/
+.repl/
+target/
+.DS_Store

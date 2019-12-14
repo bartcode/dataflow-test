@@ -1,0 +1,3 @@
+"""
+Message module for Protobuf.
+"""

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package proto3;
+
+option java_package = "example.proto";
+
+message NumberBuffer {
+  int64 id = 1;
+  int64 timestamp = 2;
+  string name = 3;
+  int32 number = 4;
+  string type = 5;
+}
