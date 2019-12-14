@@ -12,7 +12,7 @@ import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.{CreateDisposition, WriteDisposition}
-import org.apache.beam.sdk.transforms.windowing.TimestampCombiner.LATEST
+import org.apache.beam.sdk.transforms.windowing.TimestampCombiner
 import org.apache.beam.sdk.transforms.windowing.{AfterPane, IntervalWindow, Repeatedly}
 import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.joda.time.{DateTime, Duration, Instant}
@@ -41,15 +41,15 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
     val windowedInput = getWindowedStream
 
     val numberCount = windowedInput
-      .transform("Determine counted values")(_.count)
-      .asSingletonSideInput
+          .transform("Determine counted values")(_.count)
+          .asListSideInput // Sometimes and SCollection can contain more than a single item. Use a list to be sure.
 
     val aggregatedValues: SCollection[(Int, String)] = windowedInput
       .aggregateValues(numberInfoTable)
 
     aggregatedValues
       .withSideInputs(numberCount)
-      .map { case ((numberSum, numberType), side) => (numberSum, numberType, side(numberCount)) }
+      .map { case ((numberSum, numberType), side) => (numberSum, numberType, side(numberCount).max) }
       .toSCollection
       .transformToTableRow
       .saveAsCustomOutput("Save aggregate to BQ",
@@ -72,8 +72,7 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
       val numberInfoSideInput = getNumberInfoSideInput(numberInfoTable)
 
       pipeline
-        .transform("Sum values")(
-          _.sum)
+        .transform("Sum values")(_.sum)
         .withSideInputs(numberInfoSideInput) // Since the right side is small, a side input can be used.
         .map {
           case (sum, side) =>
@@ -130,7 +129,7 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
     .transform("Apply window functions")(
       _.withFixedWindows(Duration.standardSeconds(windowSeconds),
         options = WindowOptions(
-          timestampCombiner = LATEST,
+          timestampCombiner = TimestampCombiner.LATEST,
           accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
           trigger = Repeatedly.forever(AfterPane.elementCountAtLeast(1)),
           allowedLateness = Duration.standardSeconds(allowedLateness)))
