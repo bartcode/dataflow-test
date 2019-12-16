@@ -13,15 +13,15 @@ record in a BQ table, which looks as follows:
 The basic flow schema is as follows:
 
 ```text
-+------------------------+                +------------------------+                +------------------------+
-|                        |                |                        |                |                        |
-| Google Cloud Pub/Sub   +--------------->+ Google Cloud Dataflow  +--------------->+ Google Cloud BigQuery  |
-|                        |       |        |                        |                |                        |
-+------------------------+       |        +------------------------+                +------------------------+
-                                 |
-+------------------------+       |
-|                        |       |
-| Google Cloud BigQuery  +-------+
++------------------------+         +------------------------+         +------------------------+
+|                        |         |                        |         |                        |
+| Google Cloud Pub/Sub   +-------->+ Google Cloud Dataflow  +-------->+ Google Cloud BigQuery  |
+|                        |    |    |                        |         |                        |
++------------------------+    |    +------------------------+         +------------------------+
+                              |
++------------------------+    |
+|                        |    |
+| Google Cloud BigQuery  +----+
 |                        |
 +------------------------+
 
@@ -45,3 +45,7 @@ $ sbt "runMain example.SourceMerge"
 ```
 
 Messages can be sent with the `client`, which is also included in this repository. See its [README.md](./client).
+
+## References
+This project makes use of Protobuf in combination with Scio/Dataflow:
+- [Reading protocol buffer messages from Pub/Sub in Dataflow with Scio and ScalaPB](https://medium.com/@hazenbart/reading-protocol-buffer-messages-from-pub-sub-in-dataflow-with-scio-and-scalapb-525182069e55)
