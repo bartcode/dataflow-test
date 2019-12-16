@@ -181,16 +181,16 @@ object SourceMerge {
    * @param cmdlineArgs : Command-line arguments
    */
   def main(cmdlineArgs: Array[String]): Unit = {
-    val (sc, _) = ContextAndArgs(cmdlineArgs ++ Array(
-      s"--stagingLocation=$bucketPath/staging",
-      s"--tempLocation=$bucketPath/temp/"))
+    val (sc, _) = ContextAndArgs(cmdlineArgs)
 
-    sc.options.setJobName("example-etl-" + (DateTime.now().toString("YYYY-MM-dd-HHmmss")))
+    sc.options.setJobName("example-etl-" + DateTime.now().toString("YYYY-MM-dd-HHmmss"))
     sc.optionsAs[DataflowPipelineOptions].setProject(projectId)
     sc.optionsAs[DataflowPipelineOptions].setRegion(region)
     sc.optionsAs[DataflowPipelineOptions].setWorkerMachineType("n1-standard-2")
     sc.optionsAs[DataflowPipelineOptions].setExperiments(List("flexRSGoal=OPTIMIZED").asJava)
     sc.optionsAs[DataflowPipelineOptions].setNumWorkers(1)
+    sc.optionsAs[DataflowPipelineOptions].setTempLocation(bucketPath + "/temp")
+    sc.optionsAs[DataflowPipelineOptions].setStagingLocation(bucketPath + "/staging")
     sc.optionsAs[DataflowPipelineOptions].setStreaming(true)
 
     sc.options.setRunner(classOf[DataflowRunner])

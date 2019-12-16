@@ -5,3 +5,8 @@ lower_bound,upper_bound,number_type
 1000,9999,thousands
 10000,99999,tens of thousands
 100000,999999,hundreds of thousands
+100000,999999,hundreds of thousands
+1000000,9999999,millions
+10000000,99999999,tens of millions
+100000000,999999999,hundreds of millions
+1000000000,9999999999,billions
