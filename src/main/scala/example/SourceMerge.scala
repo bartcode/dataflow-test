@@ -16,6 +16,7 @@ import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.joda.time.{DateTime, Duration, Instant}
 
 import scala.collection.JavaConverters._
+import scala.language.higherKinds
 import scala.util.Try
 
 case class NumberAggregate(sum: Double, count: Long, numberType: Option[String] = None)
@@ -199,7 +200,7 @@ object SourceMerge {
 
     sm.processSources()
 
-    sc.close().waitUntilFinish()
+    sc.run().waitUntilFinish()
   }
 
   @BigQueryType.toTable
