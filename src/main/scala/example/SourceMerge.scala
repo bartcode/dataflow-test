@@ -19,7 +19,22 @@ import scala.collection.JavaConverters._
 import scala.language.higherKinds
 import scala.util.Try
 
-case class NumberAggregate(sum: Double, count: Long, numberType: Option[String] = None)
+case class NumberAggregate(sum: Double, count: Long, numberType: Option[String] = None) {
+  /**
+   * Find string that describes the order of magnitude of a number.
+   *
+   * @param numberInfoMap : Map with lower bounds, upper bounds and resulting string.
+   * @return Optional output string.
+   */
+  def findNumberString(numberInfoMap: Seq[(Long, Long, String)]): Option[String] = {
+    Try(
+      numberInfoMap
+        .filter { case (lower: Long, upper: Long, _) => (lower <= this.sum) && (upper >= this.sum) }
+        .map(x => x._3)
+        .head)
+      .toOption
+  }
+}
 
 /**
  * Process Pub/Sub source and BigQuery table.
@@ -39,7 +54,8 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
    * Process data.
    */
   def processSources(): Unit =
-    getWindowedStream
+    getInputStream
+      .windowedStream
       .aggregateValues(numberInfoTable)
       .transformToTableRow()
       .saveAsCustomOutput("Save aggregate to BQ",
@@ -50,7 +66,35 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
           .withCreateDisposition(CreateDisposition.CREATE_IF_NEEDED)
           .withWriteDisposition(WriteDisposition.WRITE_APPEND))
 
+  /**
+   * Load parsed stream of messages from Google Cloud Pub/Sub.
+   *
+   * @return SCollection of parsed messages.
+   */
+  def getInputStream: SCollection[NumberBuffer] = sc
+    .pubsubSubscription[Array[Byte]](inputSubscription)
+    .transform("Parse objects")(
+      _.map(NumberBuffer.parseFrom))
+
   implicit class scSideInputProcessor(pipeline: SCollection[NumberBuffer]) {
+    /**
+     * Windowed stream with sum and window information.
+     *
+     * @return Windowed SCollection with time window and sum.
+     */
+    def windowedStream: SCollection[NumberBuffer] =
+      pipeline
+        .transform("Timestamp records")(
+          _.timestampBy(x =>
+            new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(allowedLateness)))
+        .transform("Apply window functions")(
+          _.withFixedWindows(Duration.standardSeconds(windowSeconds),
+            options = WindowOptions(
+              timestampCombiner = TimestampCombiner.END_OF_WINDOW,
+              accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
+              trigger = Repeatedly.forever(AfterWatermark.pastEndOfWindow()),
+              allowedLateness = Duration.standardSeconds(allowedLateness))))
+
     /**
      * Add side input and aggregate values.
      *
@@ -63,29 +107,21 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
       val sumOp = Aggregator.numericSum[Int].composePrepare[NumberBuffer](_.number)
       val momentsOp = Moments.aggregator.composePrepare[NumberBuffer](_.number)
 
-      val colAgg = MultiAggregator((sumOp, momentsOp)).andThenPresent {
+      val colAggregate = MultiAggregator((sumOp, momentsOp)).andThenPresent {
         case (sum, moments) => NumberAggregate(sum, moments.count)
       }
 
       pipeline
-        .aggregate(colAgg)
+        .aggregate(colAggregate)
         .transform("Add side input")(
           // Since the right side is small, a side input can be used.
           _.withSideInputs(numberInfoSideInput)
             .map {
               case (aggregate, side) =>
-                val numberInfoMap = side(numberInfoSideInput)
                 aggregate.copy(
                   sum = aggregate.sum,
                   count = aggregate.count,
-                  numberType = Try(
-                    numberInfoMap.filter {
-                      case (lowerBound: Long, upperBound: Long, _: String) =>
-                        (lowerBound <= aggregate.sum) && (upperBound >= aggregate.sum)
-                    }
-                      .map(x => x._3)
-                      .head
-                  ).toOption)
+                  numberType = aggregate.findNumberString(side(numberInfoSideInput)))
             }
             .toSCollection
         )
@@ -102,8 +138,7 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
       pipeline
         .transform("Add window information")(
           _.withWindow[IntervalWindow]
-            .map { case (aggregate, window) => (window.end(), aggregate) }
-        )
+            .map { case (aggregate, window) => (window.end(), aggregate) })
         .transform("Convert into TableRow")(
           _.map {
             case (timestamp, aggregate) => TableRow(Map(
@@ -111,39 +146,12 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
               "number_sum" -> aggregate.sum,
               "number_count" -> aggregate.count,
               "number_type" -> aggregate.numberType.getOrElse("unknown"),
-              "version" -> "run-1")
+              "version" -> "v1")
               .map(kv => (kv._1, kv._2))
               .toList: _*)
           })
     }
   }
-
-  /**
-   * Windowed stream with sum and window information.
-   *
-   * @return Windowed SCollection with time window and sum.
-   */
-  def getWindowedStream: SCollection[NumberBuffer] = getInputStream
-    .transform("Timestamp records")(
-      _.timestampBy(x =>
-        new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(allowedLateness)))
-    .transform("Apply window functions")(
-      _.withFixedWindows(Duration.standardSeconds(windowSeconds),
-        options = WindowOptions(
-          timestampCombiner = TimestampCombiner.END_OF_WINDOW,
-          accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
-          trigger = Repeatedly.forever(AfterWatermark.pastEndOfWindow()),
-          allowedLateness = Duration.standardSeconds(allowedLateness))))
-
-  /**
-   * Load parsed stream of messages from Google Cloud Pub/Sub.
-   *
-   * @return SCollection of parsed messages.
-   */
-  def getInputStream: SCollection[NumberBuffer] = sc
-    .pubsubSubscription[Array[Byte]](inputSubscription)
-    .transform("Parse objects")(
-      _.map(NumberBuffer.parseFrom))
 
   /**
    * Load typed BigQuery table which contains information about the numbers.
@@ -195,8 +203,13 @@ object SourceMerge {
 
     sc.options.setRunner(classOf[DataflowRunner])
 
-    val sm = new SourceMerge(sc, inputSubscription, numberInfo, resultInfoTable,
-      windowSeconds = windowSeconds, allowedLateness = allowedLateness)
+    val sm = new SourceMerge(
+      sc,
+      inputSubscription,
+      numberInfo,
+      resultInfoTable,
+      windowSeconds = windowSeconds,
+      allowedLateness = allowedLateness)
 
     sm.processSources()
 
@@ -204,8 +217,10 @@ object SourceMerge {
   }
 
   @BigQueryType.toTable
-  case class NumberResults(update_time: Instant, number_sum: Int,
-                           number_count: Int, number_type: String,
+  case class NumberResults(update_time: Instant,
+                           number_sum: Int,
+                           number_count: Int,
+                           number_type: String,
                            version: String)
 
 }
