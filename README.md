@@ -10,9 +10,9 @@ record in a BQ table, which looks as follows:
 | 1234 | 49 | 5 | tens | run-1 |
 | 1235 | 490 | 100 | hundreds | run-1 |
 
-The basic flow schema is as follows:
+The flow schema is as follows:
 
-![Architectural overview](./data/overview.svg)
+![Architectural overview](./data/architecture.svg)
 
 ## Set up
 A few things need to be set up on the Google Cloud Platform:
