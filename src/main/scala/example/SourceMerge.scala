@@ -208,8 +208,8 @@ object SourceMerge {
       inputSubscription,
       numberInfo,
       resultInfoTable,
-      windowSeconds = windowSeconds,
-      allowedLateness = allowedLateness)
+      windowSeconds,
+      allowedLateness)
 
     sm.processSources()
 
