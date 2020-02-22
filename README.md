@@ -12,20 +12,7 @@ record in a BQ table, which looks as follows:
 
 The basic flow schema is as follows:
 
-```text
-+------------------------+         +------------------------+         +------------------------+
-|                        |         |                        |         |                        |
-| Google Cloud Pub/Sub   +-------->+ Google Cloud Dataflow  +-------->+ Google Cloud BigQuery  |
-|                        |    |    |                        |         |                        |
-+------------------------+    |    +------------------------+         +------------------------+
-                              |
-+------------------------+    |
-|                        |    |
-| Google Cloud BigQuery  +----+
-|                        |
-+------------------------+
-
-```
+![Architectural overview](./data/overview.svg)
 
 ## Set up
 A few things need to be set up on the Google Cloud Platform:
