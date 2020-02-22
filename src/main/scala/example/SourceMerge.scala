@@ -26,14 +26,13 @@ case class NumberAggregate(sum: Double, count: Long, numberType: Option[String] 
    * @param numberInfoMap : Map with lower bounds, upper bounds and resulting string.
    * @return Optional output string.
    */
-  def findNumberString(numberInfoMap: Seq[(Long, Long, String)]): Option[String] = {
+  def findNumberString(numberInfoMap: Seq[(Long, Long, String)]): Option[String] =
     Try(
       numberInfoMap
         .filter { case (lower: Long, upper: Long, _) => (lower <= this.sum) && (upper >= this.sum) }
         .map(x => x._3)
         .head)
       .toOption
-  }
 }
 
 /**
