@@ -196,7 +196,7 @@ object SourceMerge {
     sc.optionsAs[DataflowPipelineOptions].setWorkerMachineType("n1-standard-2")
     sc.optionsAs[DataflowPipelineOptions].setExperiments(List("flexRSGoal=OPTIMIZED").asJava)
     sc.optionsAs[DataflowPipelineOptions].setNumWorkers(1)
-    sc.optionsAs[DataflowPipelineOptions].setTempLocation(bucketPath + "/temp")
+    sc.optionsAs[DataflowPipelineOptions].setGcpTempLocation(bucketPath + "/temp")
     sc.optionsAs[DataflowPipelineOptions].setStagingLocation(bucketPath + "/staging")
     sc.optionsAs[DataflowPipelineOptions].setStreaming(true)
 
