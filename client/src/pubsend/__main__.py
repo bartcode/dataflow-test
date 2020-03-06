@@ -12,11 +12,11 @@ from datetime import datetime
 from google.cloud import pubsub_v1
 from pyhocon import ConfigFactory
 
-from pbsend.message.message_pb2 import NumberBuffer
+from .message.message_pb2 import NumberBuffer
 
 logging.basicConfig(level=logging.INFO)
 
-CONFIG = ConfigFactory().parse_file(os.path.join(sys.prefix, 'pbsend', 'application.conf'))
+CONFIG = ConfigFactory().parse_file(os.path.join(sys.prefix, 'pubsend', 'application.conf'))
 
 PARSER = argparse.ArgumentParser(description='Send messages to Pub/Sub')
 

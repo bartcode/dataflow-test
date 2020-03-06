@@ -3,17 +3,18 @@ This simple client can be used to send messages to test the (Scala/Scio) code of
 
 ## Installation
 ```bash
-$ python3 -m venv venv
-$ pip install -U .
+$ conda env create -f environment.yml -p venv/
+$ conda activate venv/
+$ conda develop .
 ```
-Update `application.conf` with the required parameters (self-explanatory). **And don't forget to run
-the pip installation again after updating.**
+
+Update `application.conf` with the required parameters (self-explanatory).
 
 ## Running the code
 ```
 $ pbsend
 
-usage: pbsend [-h] [-p PROJECT_ID] [-t TOPIC] [-l LOOPS]
+usage: psclient [-h] [-p PROJECT_ID] [-t TOPIC] [-l LOOPS]
                    [-c MESSAGE_COUNT] [-s SLEEP_TIME]
 
 Send messages to Pub/Sub
@@ -30,5 +31,4 @@ optional arguments:
                         Number of messages to send.
   -s SLEEP_TIME, --sleep_time SLEEP_TIME
                         Seconds of sleep between message bursts.
-
 ```

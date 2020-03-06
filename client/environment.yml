@@ -1,0 +1,11 @@
+name: null
+dependencies:
+  - python=3.7
+  - protobuf=3.11
+  - pylint=2.4
+  - setuptools=45.2
+  - pip
+  - pip:
+    - google-cloud-pubsub==1.0.2
+    - pyhocon==0.3.51
+    - .
