@@ -158,17 +158,14 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
    * @param tableSpec : Table name to load.
    * @return Side input
    */
-  def getNumberInfoSideInput(tableSpec: String): SideInput[Seq[(Long, Long, String)]] = sc
-    .customInput(s"Read number info",
-      BigQueryIO
-        .readTableRows()
-        .from(tableSpec))
-    .transform("Extract boundaries")(
-      _.map(x => (
-        x.getLong("lower_bound"),
-        x.getLong("upper_bound"),
-        x.getString("number_type")))
-    ).asListSideInput
+  def getNumberInfoSideInput(tableSpec: String): SideInput[Seq[(Long, Long, String)]] =
+    sc.bigQueryTable(Table.Spec(tableSpec))
+      .transform("Extract boundaries")(
+        _.map(x => (
+          x.getLong("lower_bound"),
+          x.getLong("upper_bound"),
+          x.getString("number_type")))
+      ).asListSideInput
 }
 
 object SourceMerge {
@@ -196,6 +193,7 @@ object SourceMerge {
     sc.optionsAs[DataflowPipelineOptions].setWorkerMachineType("n1-standard-2")
     sc.optionsAs[DataflowPipelineOptions].setExperiments(List("flexRSGoal=OPTIMIZED").asJava)
     sc.optionsAs[DataflowPipelineOptions].setNumWorkers(1)
+    sc.optionsAs[DataflowPipelineOptions].setTempLocation(bucketPath + "/temp")
     sc.optionsAs[DataflowPipelineOptions].setGcpTempLocation(bucketPath + "/temp")
     sc.optionsAs[DataflowPipelineOptions].setStagingLocation(bucketPath + "/staging")
     sc.optionsAs[DataflowPipelineOptions].setStreaming(true)

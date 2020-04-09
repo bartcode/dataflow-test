@@ -59,36 +59,39 @@ def main() -> None:
     Send messages
     :return: None
     """
-    args, _ = PARSER.parse_known_args()
+    try:
+        args, _ = PARSER.parse_known_args()
 
-    publisher = pubsub_v1.PublisherClient()
-    topic_name = f'projects/{args.project_id}/topics/{args.topic}'
+        publisher = pubsub_v1.PublisherClient()
+        topic_name = f'projects/{args.project_id}/topics/{args.topic}'
 
-    for loop_index in range(args.loops):
-        logging.info('Loop %d/%d, sending %d messages at timestamp %s.', loop_index + 1, args.loops, args.message_count,
-                     datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        number_sum = 0
+        for loop_index in range(args.loops):
+            logging.info('Loop %d/%d, sending %d messages at timestamp %s.', loop_index + 1, args.loops, args.message_count,
+                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            number_sum = 0
 
-        for _ in range(args.message_count):
-            number = random.randint(1, 4)
-            number_sum += number
-            message = NumberBuffer(
-                id=random.randint(1e6, 1e9),
-                timestamp=round(datetime.timestamp(datetime.now()) * 1000),
-                name='None',
-                number=number,
-                type='None'
-            )
+            for _ in range(args.message_count):
+                number = random.randint(1, 4)
+                number_sum += number
+                message = NumberBuffer(
+                    id=random.randint(1e6, 1e9),
+                    timestamp=round(datetime.timestamp(datetime.now()) * 1000),
+                    name='None',
+                    number=number,
+                    type='None'
+                )
 
-            # logging.info('Publishing message %d: %s.', k, message)
-            publisher.publish(topic_name, data=message.SerializeToString())
+                # logging.info('Publishing message %d: %s.', k, message)
+                publisher.publish(topic_name, data=message.SerializeToString())
 
-        logging.info('Sum for this round equals %d.', number_sum)
+            logging.info('Sum for this round equals %d.', number_sum)
 
-        if loop_index + 1 != args.loops:
-            logging.info('Done! Waiting %d seconds.', args.sleep_time)
+            if loop_index + 1 != args.loops:
+                logging.info('Done! Waiting %d seconds.', args.sleep_time)
 
-            time.sleep(args.sleep_time)
+                time.sleep(args.sleep_time)
+    except KeyboardInterrupt:
+        logging.info('Process stopped by CTRL+C')
 
 
 if __name__ == '__main__':
