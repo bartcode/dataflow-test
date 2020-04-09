@@ -3,7 +3,7 @@ package example
 import com.spotify.scio._
 import com.spotify.scio.bigquery._
 import com.spotify.scio.bigquery.types.BigQueryType
-import com.spotify.scio.values.{SCollection, SideInput, WindowOptions}
+import com.spotify.scio.values.{SCollection, SideInput}
 import com.twitter.algebird.{Aggregator, Moments, MultiAggregator}
 import com.typesafe.config.{Config, ConfigFactory}
 import example.proto.message.NumberBuffer
@@ -11,8 +11,6 @@ import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.Write.{CreateDisposition, WriteDisposition}
-import org.apache.beam.sdk.transforms.windowing.{AfterWatermark, IntervalWindow, Repeatedly, TimestampCombiner}
-import org.apache.beam.sdk.values.WindowingStrategy.AccumulationMode
 import org.joda.time.{DateTime, Duration, Instant}
 
 import scala.collection.JavaConverters._
@@ -87,12 +85,8 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
           _.timestampBy(x =>
             new DateTime(x.timestamp).toInstant, allowedTimestampSkew = Duration.standardSeconds(allowedLateness)))
         .transform("Apply window functions")(
-          _.withFixedWindows(Duration.standardSeconds(windowSeconds),
-            options = WindowOptions(
-              timestampCombiner = TimestampCombiner.END_OF_WINDOW,
-              accumulationMode = AccumulationMode.ACCUMULATING_FIRED_PANES,
-              trigger = Repeatedly.forever(AfterWatermark.pastEndOfWindow()),
-              allowedLateness = Duration.standardSeconds(allowedLateness))))
+          ??? // 01. Use fixed windows defining the combiner, accumulation mode, trigger and allowed lateness.
+        )
 
     /**
      * Add side input and aggregate values.
@@ -117,10 +111,8 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
           _.withSideInputs(numberInfoSideInput)
             .map {
               case (aggregate, side) =>
-                aggregate.copy(
-                  sum = aggregate.sum,
-                  count = aggregate.count,
-                  numberType = aggregate.findNumberString(side(numberInfoSideInput)))
+                ??? // 02. The numberType of the aggregate should be updated with the 'order of magnitude' string
+                    //     as can be found using aggregate.findNumberString(someNumber).
             }
             .toSCollection
         )
@@ -136,8 +128,8 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
     def transformToTableRow(): SCollection[TableRow] = {
       pipeline
         .transform("Add window information")(
-          _.withWindow[IntervalWindow]
-            .map { case (aggregate, window) => (window.end(), aggregate) })
+          ??? // 03. Add windowing information just before writing it to the database.
+        )
         .transform("Convert into TableRow")(
           _.map {
             case (timestamp, aggregate) => TableRow(Map(
