@@ -5,17 +5,16 @@ This simple client can be used to send messages to test the (Scala/Scio) code of
 ```bash
 $ conda env create -f environment.yml -p venv/
 $ conda activate venv/
-$ conda develop .
 ```
-
-Update `application.conf` with the required parameters (self-explanatory).
+Update `application.conf` with the required parameters (self-explanatory). **And don't forget to run
+the pip installation again after updating.**
 
 ## Running the code
 ```
-$ pbsend
+$ pubsend --help
 
-usage: psclient [-h] [-p PROJECT_ID] [-t TOPIC] [-l LOOPS]
-                   [-c MESSAGE_COUNT] [-s SLEEP_TIME]
+usage: pubsend [-h] [-p PROJECT_ID] [-t TOPIC] [-l LOOPS]
+                    [-c MESSAGE_COUNT] [-s SLEEP_TIME]
 
 Send messages to Pub/Sub
 
