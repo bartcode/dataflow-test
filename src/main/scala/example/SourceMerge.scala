@@ -90,7 +90,7 @@ class SourceMerge(@transient val sc: ScioContext, inputSubscription: String,
           _.withFixedWindows(Duration.standardSeconds(windowSeconds),
             options = WindowOptions(
               timestampCombiner = TimestampCombiner.END_OF_WINDOW,
-              accumulationMode = AccumulationMode.DISCARDING_FIRED_PANES,
+              accumulationMode = AccumulationMode.ACCUMULATING_FIRED_PANES,
               trigger = Repeatedly.forever(AfterWatermark.pastEndOfWindow()),
               allowedLateness = Duration.standardSeconds(allowedLateness))))
 
