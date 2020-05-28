@@ -1,8 +1,8 @@
+import sbt.Keys._
 import sbt._
-import Keys._
 
-val scioVersion = "0.8.4"
-val beamVersion = "2.19.0"
+val scioVersion = "0.9.0"
+val beamVersion = "2.20.0"
 val scalaMacrosVersion = "2.1.1"
 
 lazy val commonSettings = Defaults.coreDefaultSettings ++ Seq(
@@ -23,7 +23,7 @@ lazy val macroSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "com.typesafe" % "config" % "1.4.0",
-    "com.twitter" %% "algebird-core" % "0.13.6"),
+    "com.twitter" %% "algebird-core" % "0.13.7"),
   addCompilerPlugin(paradiseDependency)
 )
 
